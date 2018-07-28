@@ -77,7 +77,7 @@
                     </#if>
                 </div>
             </div>
-            <#if isLoggedIn && 1 == currentUser.userListViewMode>
+            <#if !isLoggedIn || 1 == currentUser.userListViewMode>
             <a class="abstract" href="${servePath}${article.articlePermalink}">
                 ${article.articlePreviewContent}
             </a>

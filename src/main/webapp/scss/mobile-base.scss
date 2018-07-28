@@ -472,7 +472,7 @@ a[class*=" icon-"]:hover {
   width: 100%;
   padding: 5px 0;
   z-index: 99;
-  background-color: $theme-primary;
+  background-color: $gray-light;
 }
 
 .nav .head-fn form {
@@ -499,7 +499,7 @@ a[class*=" icon-"]:hover {
 }
 
 .nav div > a {
-  color: #fff;
+  color: #616161;
   text-decoration: none;
   margin: 0 3px;
   padding: 4px 5px;
@@ -588,7 +588,12 @@ a[class*=" icon-"]:hover {
   border-color: #51A7E8;
   box-shadow: 0 0 3px rgba(81, 167, 232, 0.5), 0 1px 1px rgba(0, 0, 0, 0.2) inset;
 }
-
+.logo {
+  display: inline-block;
+  background: url("../images/logo.png") -15px -8px;
+  width: 100px;
+  height: 30px;
+}
 /* end header */
 
 /* start footer */

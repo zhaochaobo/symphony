@@ -26,81 +26,81 @@
 <cronentries>
 
     <cron>
-        <url>/cron/users/load-names?key=dev_key</url>
+        <url>/cron/users/load-names?key=yungu</url>
         <description>Loads usernames</description>
         <schedule>every 30 minutes</schedule>
     </cron>
 
     <cron>
-        <url>/cron/article/stick-expire?key=dev_key</url>
+        <url>/cron/article/stick-expire?key=yungu</url>
         <description>Expires sticked article</description>
         <schedule>every 1 minutes</schedule>
     </cron>
 
     <cron>
-        <url>/cron/refresh-cache?key=dev_key</url>
+        <url>/cron/refresh-cache?key=yungu</url>
         <description>Refreshes cache</description>
         <schedule>every 30 minutes</schedule>
     </cron>
 
     <cron>
-        <url>/cron/stat?key=dev_key</url>
+        <url>/cron/stat?key=yungu</url>
         <description>Loads statistic data</description>
         <schedule>every 30 minutes</schedule>
     </cron>
 
     <!--
     <cron>
-        <url>/cron/xiaov?key=dev_key</url>
+        <url>/cron/xiaov?key=yungu</url>
         <description>XiaoV replies Stm.</description>
         <schedule>every 5 seconds</schedule>
     </cron>
     -->
 
     <cron>
-        <url>/cron/invitecode-expire?key=dev_key</url>
+        <url>/cron/invitecode-expire?key=yungu</url>
         <description>Expires invitecode</description>
         <schedule>every 6 minutes</schedule>
     </cron>
 
     <cron>
-        <url>/cron/mail/weekly?key=dev_key</url>
+        <url>/cron/mail/weekly?key=yungu</url>
         <description>Sends weekly newsletter</description>
         <schedule>every 5 minutes</schedule>
     </cron>
 
     <cron>
-        <url>/cron/status?key=dev_key</url>
+        <url>/cron/status?key=yungu</url>
         <description>Checks running status</description>
         <schedule>every 2 hours</schedule>
     </cron>
 
     <cron>
-        <url>/cron/verifycode/email?key=dev_key</url>
+        <url>/cron/verifycode/email?key=yungu</url>
         <description>Sends email verifycodes</description>
         <schedule>every 5 seconds</schedule>
     </cron>
 
     <cron>
-        <url>/cron/verifycode/remove-expired?key=dev_key</url>
+        <url>/cron/verifycode/remove-expired?key=yungu</url>
         <description>Removes expired verifycodes</description>
         <schedule>every 1 hours</schedule>
     </cron>
 
     <cron>
-        <url>/cron/users/reset-unverified?key=dev_key</url>
+        <url>/cron/users/reset-unverified?key=yungu</url>
         <description>Resets unverified users</description>
         <schedule>every 24 hours</schedule>
     </cron>
 
     <cron>
-        <url>/cron/forge/link/purge?key=dev_key</url>
+        <url>/cron/forge/link/purge?key=yungu</url>
         <description>Purges link forge</description>
         <schedule>every 7 hours</schedule>
     </cron>
 
     <cron>
-        <url>/cron/ipfs/articles/publish?key=dev_key</url>
+        <url>/cron/ipfs/articles/publish?key=yungu</url>
         <description>Publishes article markdown files to IPFS</description>
         <schedule>every 60 minutes</schedule>
     </cron>

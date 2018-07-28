@@ -21,8 +21,8 @@
     <div class="wrapper fn-clear">
         <div class="head-fn fn-left">
             <h1>
-                <a href="${servePath}" aria-label="${symphonyLabel}">
-                    <svg><use xlink:href="#logo"></use></svg>
+                <a class="logo" href="${servePath}" aria-label="${symphonyLabel}">
+                    <#--<svg><use xlink:href="#logo"></use></svg>-->
                 </a>
             </h1>
         </div>

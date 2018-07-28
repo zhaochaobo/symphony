@@ -33,7 +33,7 @@
             <div class="wrapper verify">
                 <div class="verify-wrap">
                     <div class="form">
-                        <svg><use xlink:href="#logo"></use></svg>
+                        <svg style="color: transparent"><use xlink:href="#logo"></use></svg> <#--临时隐藏-->
                         <div class="input-wrap">
                             <svg><use xlink:href="#userrole"></use></svg>
                             <input id="nameOrEmail" type="text" autofocus="autofocus" placeholder="${nameOrEmailLabel}" autocomplete="off" />

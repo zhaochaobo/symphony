@@ -92,11 +92,11 @@ audio:not([controls]) {
 a {
   outline: 0;
   text-decoration: none;
-  color: $blue;
+  color: $black-light;
 }
 
 a:hover {
-  text-decoration: underline;
+  text-decoration: none;
 }
 
 sub,

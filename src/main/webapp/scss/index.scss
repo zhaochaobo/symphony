@@ -629,9 +629,14 @@ label.cmt-anonymous {
     background-position: center center;
   }
 
+  ul > li > h2 > a,
+  .abstract {
+    color: $black;
+  }
+
   ul > li > h2 > a:visited,
   .abstract:visited {
-    color: #999;
+    color: $black;
   }
 
   .author {

@@ -19,8 +19,7 @@
 -->
 <div class="nav">
     <h1 aria-label="${symphonyLabel}" class="tooltipped tooltipped-s">
-        <a href="${servePath}">
-            云谷
+        <a class="logo" href="${servePath}">
         </a>
     </h1>
     <div class="nav-tabs">

@@ -757,7 +757,7 @@ a[class*=" icon-"]:hover {
 .nav {
   height: 48px;
   width: 100%;
-  background-color: $theme-primary;
+  background-color: $gray-light;
   z-index: 83;
   position: relative;
   box-sizing: border-box;
@@ -796,10 +796,11 @@ a[class*=" icon-"]:hover {
   .user-nav > a,
   .user-nav > span {
     display: inline-block;
-    color: #fff;
+    color: #616161;
     text-decoration: none;
     text-align: center;
     padding: 14px 10px;
+    font-weight: bold;
   }
 
   a.current {
@@ -920,6 +921,13 @@ a[class*=" icon-"]:hover {
   }
 }
 
+.logo {
+  display: inline-block;
+  background-image: url("../images/logo.png");
+  width: 120px;
+  height: 48px;
+}
+
 /* end header */
 
 /* start footer */
@@ -929,7 +937,7 @@ a[class*=" icon-"]:hover {
   padding: 10px 0;
   position: relative;
   z-index: 40;
-  background-color: $theme-primary;
+  background-color: $black;
 
   a {
     color: #afb1b3;
