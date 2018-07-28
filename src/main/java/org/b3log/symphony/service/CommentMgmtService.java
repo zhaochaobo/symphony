@@ -575,7 +575,7 @@ public class CommentMgmtService {
                             Pointtransfer.TRANSFER_TYPE_C_ADD_COMMENT, Pointtransfer.TRANSFER_SUM_C_ADD_SELF_ARTICLE_COMMENT,
                             commentId, System.currentTimeMillis());
                 } else {
-                    pointtransferMgmtService.transfer(commentAuthorId, articleAuthorId,
+                    pointtransferMgmtService.transfer(Pointtransfer.ID_C_SYS, commentAuthorId,
                             Pointtransfer.TRANSFER_TYPE_C_ADD_COMMENT, Pointtransfer.TRANSFER_SUM_C_ADD_COMMENT,
                             commentId, System.currentTimeMillis());
                 }

@@ -763,7 +763,7 @@ public class ArticleMgmtService {
                 final long followerCnt = followQueryService.getFollowerCount(authorId, Follow.FOLLOWING_TYPE_C_USER);
                 final int addition = (int) Math.round(Math.sqrt(followerCnt));
 
-                pointtransferMgmtService.transfer(authorId, Pointtransfer.ID_C_SYS,
+                pointtransferMgmtService.transfer(Pointtransfer.ID_C_SYS, authorId,
                         Pointtransfer.TRANSFER_TYPE_C_ADD_ARTICLE,
                         Pointtransfer.TRANSFER_SUM_C_ADD_ARTICLE + addition, articleId, System.currentTimeMillis());
 
