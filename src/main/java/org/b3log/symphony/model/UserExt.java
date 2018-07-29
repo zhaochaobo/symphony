@@ -28,7 +28,7 @@ import org.json.JSONObject;
  *
  * @author <a href="http://88250.b3log.org">Liang Ding</a>
  * @author Bill Ho
- * @version 2.13.0.1, Jul 28, 2018
+ * @version 2.13.0.2, Jul 28, 2018
  * @see org.b3log.latke.model.User
  * @since 0.2.0
  */
@@ -85,11 +85,6 @@ public final class UserExt {
     public static final String USER_LIST_VIEW_MODE = "userListViewMode";
 
     /**
-     * Key of forge link status.
-     */
-    public static final String USER_FORGE_LINK_STATUS = "userForgeLinkStatus";
-
-    /**
      * Key of user breezemoons status
      */
     public static final String USER_BREEZEMOON_STATUS = "userBreezemoonStatus";
@@ -138,11 +133,6 @@ public final class UserExt {
      * Key of user online status.
      */
     public static final String USER_ONLINE_STATUS = "userOnlineStatus";
-
-    /**
-     * Key of user timeline status.
-     */
-    public static final String USER_TIMELINE_STATUS = "userTimelineStatus";
 
     /**
      * Key of user User-Agent status.
@@ -428,16 +418,16 @@ public final class UserExt {
      */
     public static final String USER_BUILTIN_EMAIL_SUFFIX = "@sym.b3log.org";
 
-    //// Default Commenter constants
+    //// Community Bot constants
     /**
-     * Default commenter name.
+     * Bot name.
      */
-    public static final String DEFAULT_CMTER_NAME = "Default Commenter";
+    public static final String COM_BOT_NAME = "ComBot";
 
     /**
-     * Default commenter email.
+     * Bot email.
      */
-    public static final String DEFAULT_CMTER_EMAIL = "default_commenter" + USER_BUILTIN_EMAIL_SUFFIX;
+    public static final String COM_BOT_EMAIL = "combot" + USER_BUILTIN_EMAIL_SUFFIX;
 
     //// Null user
     /**
