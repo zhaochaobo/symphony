@@ -34,7 +34,7 @@ import java.util.List;
  * User repository.
  *
  * @author <a href="http://88250.b3log.org">Liang Ding</a>
- * @version 2.1.2.0, Oct 2, 2017
+ * @version 2.1.2.1, Jul 30, 2018
  * @since 0.2.0
  */
 @Repository
@@ -78,7 +78,7 @@ public class UserRepository extends AbstractRepository {
             return;
         }
 
-        userCache.RemoveUser(old);
+        userCache.removeUser(old);
         super.update(id, user);
         user.put(Keys.OBJECT_ID, id);
         userCache.putUser(user);
@@ -142,29 +142,18 @@ public class UserRepository extends AbstractRepository {
      * @throws RepositoryException repository exception
      */
     public List<JSONObject> getAdmins() throws RepositoryException {
-        final Query query = new Query().setFilter(
-                new PropertyFilter(User.USER_ROLE, FilterOperator.EQUAL, Role.ROLE_ID_C_ADMIN)).setPageCount(1)
-                .addSort(Keys.OBJECT_ID, SortDirection.ASCENDING);
-        final JSONObject result = get(query);
-        final JSONArray array = result.optJSONArray(Keys.RESULTS);
+        List<JSONObject> ret = userCache.getAdmins();
+        if (ret.isEmpty()) {
+            final Query query = new Query().setFilter(
+                    new PropertyFilter(User.USER_ROLE, FilterOperator.EQUAL, Role.ROLE_ID_C_ADMIN)).setPageCount(1)
+                    .addSort(Keys.OBJECT_ID, SortDirection.ASCENDING);
+            final JSONObject result = get(query);
+            final JSONArray array = result.optJSONArray(Keys.RESULTS);
 
-        return CollectionUtils.<JSONObject>jsonArrayToList(array);
-    }
-
-    /**
-     * Determine whether the specified email is administrator's.
-     *
-     * @param email the specified email
-     * @return {@code true} if it is administrator's email, {@code false} otherwise
-     * @throws RepositoryException repository exception
-     */
-    public boolean isAdminEmail(final String email) throws RepositoryException {
-        final JSONObject user = getByEmail(email);
-
-        if (null == user) {
-            return false;
+            ret = CollectionUtils.jsonArrayToList(array);
+            userCache.putAdmins(ret);
         }
 
-        return Role.ROLE_ID_C_ADMIN.equals(user.optString(User.USER_ROLE));
+        return ret;
     }
 }
