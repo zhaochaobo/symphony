@@ -202,7 +202,7 @@
                     </label>
                     <label class="mid">
                         <div>${miscAllowAnonymousViewLabel}</div>
-                        <select id="articleAnonymousView" name="articleAnonymousView">
+                        <select name="articleAnonymousView">
                             <option value="0"<#if 0 == article.articleAnonymousView>
                                     selected</#if>>${useGlobalLabel}</option>
                             <option value="1"<#if 1 == article.articleAnonymousView> selected</#if>>${noLabel}</option>
@@ -210,9 +210,8 @@
                         </select>
                     </label>
                     <label>
-                        <div>${sourceLabel}</div>
-                        <input type="text" id="clientArticlePermalink" name="clientArticlePermalink"
-                               value="${article.clientArticlePermalink}"/>
+                        <div>${pushLabel} Email ${pushLabel}</div>
+                        <input type="number" name="articlePushOrder" value="${article.articlePushOrder}" />
                     </label>
                 </div>
                 <br/>
