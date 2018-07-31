@@ -32,7 +32,10 @@ import org.b3log.latke.repository.*;
 import org.b3log.latke.service.LangPropsService;
 import org.b3log.latke.service.ServiceException;
 import org.b3log.latke.service.annotation.Service;
-import org.b3log.latke.util.*;
+import org.b3log.latke.util.CollectionUtils;
+import org.b3log.latke.util.Locales;
+import org.b3log.latke.util.Paginator;
+import org.b3log.latke.util.Stopwatchs;
 import org.b3log.symphony.cache.ArticleCache;
 import org.b3log.symphony.model.*;
 import org.b3log.symphony.processor.advice.validate.UserRegisterValidation;
@@ -59,7 +62,7 @@ import java.util.*;
  *
  * @author <a href="http://88250.b3log.org">Liang Ding</a>
  * @author <a href="http://vanessa.b3log.org">Liyuan Li</a>
- * @version 2.27.36.10, Jul 28, 2018
+ * @version 2.28.0.0, Jul 31, 2018
  * @since 0.2.0
  */
 @Service
@@ -154,6 +157,123 @@ public class ArticleQueryService {
     private ArticleCache articleCache;
 
     /**
+     * Gets the question articles with the specified fetch size.
+     *
+     * @param avatarViewMode the specified avatar view mode
+     * @param sortMode       the specified sort mode, 0: default, 1: unanswered, 2: reward, 3: hot
+     * @param currentPageNum the specified current page number
+     * @param fetchSize      the specified fetch size
+     * @return for example,      <pre>
+     * {
+     *     "pagination": {
+     *         "paginationPageCount": 100,
+     *         "paginationPageNums": [1, 2, 3, 4, 5]
+     *     },
+     *     "articles": [{
+     *         "oId": "",
+     *         "articleTitle": "",
+     *         "articleContent": "",
+     *         ....
+     *      }, ....]
+     * }
+     * </pre>
+     * @throws ServiceException service exception
+     */
+    public JSONObject getQuestionArticles(final int avatarViewMode, final int sortMode, final int currentPageNum, final int fetchSize)
+            throws ServiceException {
+        final JSONObject ret = new JSONObject();
+
+        Query query;
+        switch (sortMode) {
+            case 0:
+                query = new Query().
+                        addSort(Keys.OBJECT_ID, SortDirection.DESCENDING).
+                        setPageSize(fetchSize).setCurrentPageNum(currentPageNum).
+                        setFilter(makeQuestionArticleShowingFilter());
+
+                break;
+            case 1:
+                query = new Query().
+                        addSort(Keys.OBJECT_ID, SortDirection.DESCENDING).
+                        setPageSize(fetchSize).setCurrentPageNum(currentPageNum);
+                final CompositeFilter compositeFilter1 = makeQuestionArticleShowingFilter();
+                final List<Filter> filters1 = new ArrayList<>();
+                filters1.add(new PropertyFilter(Article.ARTICLE_COMMENT_CNT, FilterOperator.EQUAL, 0));
+                filters1.addAll(compositeFilter1.getSubFilters());
+                query.setFilter(new CompositeFilter(CompositeFilterOperator.AND, filters1));
+
+                break;
+            case 2:
+                final String id = String.valueOf(DateUtils.addMonths(new Date(), -1).getTime());
+                query = new Query().
+                        addSort(Keys.OBJECT_ID, SortDirection.DESCENDING).
+                        addSort(Article.ARTICLE_QNA_OFFER_POINT, SortDirection.DESCENDING).
+                        setPageSize(fetchSize).setCurrentPageNum(currentPageNum);
+                final CompositeFilter compositeFilter2 = makeQuestionArticleShowingFilter();
+                final List<Filter> filters2 = new ArrayList<>();
+                filters2.add(new PropertyFilter(Keys.OBJECT_ID, FilterOperator.GREATER_THAN_OR_EQUAL, id));
+                filters2.addAll(compositeFilter2.getSubFilters());
+                query.setFilter(new CompositeFilter(CompositeFilterOperator.AND, filters2));
+
+                break;
+            case 3:
+                query = new Query().
+                        addSort(Article.REDDIT_SCORE, SortDirection.DESCENDING).
+                        addSort(Keys.OBJECT_ID, SortDirection.DESCENDING).
+                        setPageSize(fetchSize).setCurrentPageNum(currentPageNum).
+                        setFilter(makeQuestionArticleShowingFilter());
+
+                break;
+            default:
+                query = new Query().
+                        addSort(Keys.OBJECT_ID, SortDirection.DESCENDING).
+                        setPageSize(fetchSize).setCurrentPageNum(currentPageNum).
+                        setFilter(makeQuestionArticleShowingFilter());
+        }
+
+        JSONObject result;
+        try {
+            Stopwatchs.start("Query question articles");
+
+            result = articleRepository.get(query);
+        } catch (final RepositoryException e) {
+            LOGGER.log(Level.ERROR, "Gets articles failed", e);
+
+            throw new ServiceException(e);
+        } finally {
+            Stopwatchs.end();
+        }
+
+        final int pageCount = result.optJSONObject(Pagination.PAGINATION).optInt(Pagination.PAGINATION_PAGE_COUNT);
+
+        final JSONObject pagination = new JSONObject();
+        ret.put(Pagination.PAGINATION, pagination);
+
+        final int windowSize = Symphonys.getInt("latestArticlesWindowSize");
+
+        final List<Integer> pageNums = Paginator.paginate(currentPageNum, fetchSize, pageCount, windowSize);
+        pagination.put(Pagination.PAGINATION_PAGE_COUNT, pageCount);
+        pagination.put(Pagination.PAGINATION_PAGE_NUMS, (Object) pageNums);
+
+        final JSONArray data = result.optJSONArray(Keys.RESULTS);
+        final List<JSONObject> articles = CollectionUtils.jsonArrayToList(data);
+
+        try {
+            organizeArticles(avatarViewMode, articles);
+        } catch (final RepositoryException e) {
+            LOGGER.log(Level.ERROR, "Organizes articles failed", e);
+
+            throw new ServiceException(e);
+        }
+
+        //final Integer participantsCnt = Symphonys.getInt("latestArticleParticipantsCnt");
+        //genParticipants(articles, participantsCnt);
+        ret.put(Article.ARTICLES, (Object) articles);
+
+        return ret;
+    }
+
+    /**
      * Gets following user articles.
      *
      * @param avatarViewMode the specified avatar view mode
@@ -185,28 +305,9 @@ public class ArticleQueryService {
         filters.add(new PropertyFilter(Article.ARTICLE_TYPE, FilterOperator.NOT_EQUAL, Article.ARTICLE_TYPE_C_DISCUSSION));
         filters.add(new PropertyFilter(Article.ARTICLE_AUTHOR_ID, FilterOperator.IN, followingUserIds));
         query.setFilter(new CompositeFilter(CompositeFilterOperator.AND, filters));
+        addListProjections(query);
 
-        query.addProjection(Keys.OBJECT_ID, String.class).
-                addProjection(Article.ARTICLE_STICK, Long.class).
-                addProjection(Article.ARTICLE_CREATE_TIME, Long.class).
-                addProjection(Article.ARTICLE_UPDATE_TIME, Long.class).
-                addProjection(Article.ARTICLE_LATEST_CMT_TIME, Long.class).
-                addProjection(Article.ARTICLE_AUTHOR_ID, String.class).
-                addProjection(Article.ARTICLE_TITLE, String.class).
-                addProjection(Article.ARTICLE_STATUS, Integer.class).
-                addProjection(Article.ARTICLE_VIEW_CNT, Integer.class).
-                addProjection(Article.ARTICLE_TYPE, Integer.class).
-                addProjection(Article.ARTICLE_PERMALINK, String.class).
-                addProjection(Article.ARTICLE_TAGS, String.class).
-                addProjection(Article.ARTICLE_LATEST_CMTER_NAME, String.class).
-                addProjection(Article.ARTICLE_SYNC_TO_CLIENT, Boolean.class).
-                addProjection(Article.ARTICLE_COMMENT_CNT, Integer.class).
-                addProjection(Article.ARTICLE_ANONYMOUS, Integer.class).
-                addProjection(Article.ARTICLE_PERFECT, Integer.class).
-                addProjection(Article.ARTICLE_CONTENT, String.class).
-                addProjection(Article.ARTICLE_QNA_OFFER_POINT, Integer.class);
-
-        JSONObject result = null;
+        JSONObject result;
         try {
             Stopwatchs.start("Query following user articles");
 
@@ -265,7 +366,6 @@ public class ArticleQueryService {
         articleFields.put(Article.ARTICLE_PERMALINK, String.class);
         articleFields.put(Article.ARTICLE_TAGS, String.class);
         articleFields.put(Article.ARTICLE_LATEST_CMTER_NAME, String.class);
-        articleFields.put(Article.ARTICLE_SYNC_TO_CLIENT, Boolean.class);
         articleFields.put(Article.ARTICLE_COMMENT_CNT, Integer.class);
         articleFields.put(Article.ARTICLE_ANONYMOUS, Integer.class);
         articleFields.put(Article.ARTICLE_PERFECT, Integer.class);
@@ -932,26 +1032,8 @@ public class ArticleQueryService {
                 articleIds.add(tagArticleRelations.optJSONObject(i).optString(Article.ARTICLE + '_' + Keys.OBJECT_ID));
             }
 
-            query = new Query().setFilter(new PropertyFilter(Keys.OBJECT_ID, FilterOperator.IN, articleIds)).
-                    addProjection(Keys.OBJECT_ID, String.class).
-                    addProjection(Article.ARTICLE_STICK, Long.class).
-                    addProjection(Article.ARTICLE_CREATE_TIME, Long.class).
-                    addProjection(Article.ARTICLE_UPDATE_TIME, Long.class).
-                    addProjection(Article.ARTICLE_LATEST_CMT_TIME, Long.class).
-                    addProjection(Article.ARTICLE_AUTHOR_ID, String.class).
-                    addProjection(Article.ARTICLE_TITLE, String.class).
-                    addProjection(Article.ARTICLE_STATUS, Integer.class).
-                    addProjection(Article.ARTICLE_VIEW_CNT, Integer.class).
-                    addProjection(Article.ARTICLE_TYPE, Integer.class).
-                    addProjection(Article.ARTICLE_PERMALINK, String.class).
-                    addProjection(Article.ARTICLE_TAGS, String.class).
-                    addProjection(Article.ARTICLE_LATEST_CMTER_NAME, String.class).
-                    addProjection(Article.ARTICLE_SYNC_TO_CLIENT, Boolean.class).
-                    addProjection(Article.ARTICLE_COMMENT_CNT, Integer.class).
-                    addProjection(Article.ARTICLE_ANONYMOUS, Integer.class).
-                    addProjection(Article.ARTICLE_PERFECT, Integer.class).
-                    addProjection(Article.ARTICLE_CONTENT, String.class).
-                    addProjection(Article.ARTICLE_QNA_OFFER_POINT, Integer.class);
+            query = new Query().setFilter(new PropertyFilter(Keys.OBJECT_ID, FilterOperator.IN, articleIds));
+            addListProjections(query);
 
             result = articleRepository.get(query);
 
@@ -1019,34 +1101,6 @@ public class ArticleQueryService {
             return ret;
         } catch (final RepositoryException e) {
             LOGGER.log(Level.ERROR, "Gets articles by tag [tagTitle=" + tag.optString(Tag.TAG_TITLE) + "] failed", e);
-            throw new ServiceException(e);
-        }
-    }
-
-    /**
-     * Gets an article by the specified client article id.
-     *
-     * @param authorId        the specified author id
-     * @param clientArticleId the specified client article id
-     * @return article, return {@code null} if not found
-     * @throws ServiceException service exception
-     */
-    public JSONObject getArticleByClientArticleId(final String authorId, final String clientArticleId) throws ServiceException {
-        final List<Filter> filters = new ArrayList<>();
-        filters.add(new PropertyFilter(Article.ARTICLE_CLIENT_ARTICLE_ID, FilterOperator.EQUAL, clientArticleId));
-        filters.add(new PropertyFilter(Article.ARTICLE_AUTHOR_ID, FilterOperator.EQUAL, authorId));
-
-        final Query query = new Query().setFilter(new CompositeFilter(CompositeFilterOperator.AND, filters));
-        try {
-            final JSONObject result = articleRepository.get(query);
-            final JSONArray array = result.optJSONArray(Keys.RESULTS);
-            if (0 == array.length()) {
-                return null;
-            }
-
-            return array.optJSONObject(0);
-        } catch (final RepositoryException e) {
-            LOGGER.log(Level.ERROR, "Gets article [clientArticleId=" + clientArticleId + "] failed", e);
             throw new ServiceException(e);
         }
     }
@@ -1229,26 +1283,6 @@ public class ArticleQueryService {
     }
 
     /**
-     * Gets the random articles with the specified fetch size.
-     *
-     * @param avatarViewMode the specified avatar view mode
-     * @param fetchSize      the specified fetch size
-     * @return random articles, returns an empty list if not found
-     * @throws ServiceException service exception
-     */
-    public List<JSONObject> getRandomArticles(final int avatarViewMode, final int fetchSize) throws ServiceException {
-        try {
-            final List<JSONObject> ret = articleRepository.getRandomly(fetchSize);
-            organizeArticles(avatarViewMode, ret);
-
-            return ret;
-        } catch (final RepositoryException e) {
-            LOGGER.log(Level.ERROR, "Gets random articles failed", e);
-            throw new ServiceException(e);
-        }
-    }
-
-    /**
      * Makes article showing filters.
      *
      * @return filter the article showing to user
@@ -1261,7 +1295,7 @@ public class ArticleQueryService {
     }
 
     /**
-     * Makes recent article showing filters.
+     * Makes recent articles showing filter.
      *
      * @return filter the article showing to user
      */
@@ -1271,183 +1305,22 @@ public class ArticleQueryService {
         filters.add(new PropertyFilter(Article.ARTICLE_TYPE, FilterOperator.NOT_EQUAL, Article.ARTICLE_TYPE_C_DISCUSSION));
         filters.add(new PropertyFilter(Article.ARTICLE_TAGS, FilterOperator.NOT_EQUAL, Tag.TAG_TITLE_C_SANDBOX));
         filters.add(new PropertyFilter(Article.ARTICLE_TAGS, FilterOperator.NOT_LIKE, "B3log%"));
+
         return new CompositeFilter(CompositeFilterOperator.AND, filters);
     }
 
     /**
-     * Makes the recent (sort by create time desc) articles with the specified fetch size.
+     * Makes question articles showing filter.
      *
-     * @param currentPageNum the specified current page number
-     * @param fetchSize      the specified fetch size
-     * @return recent articles query
+     * @return filter the article showing to user
      */
-    private Query makeRecentDefaultQuery(final int currentPageNum, final int fetchSize) {
-        final Query ret = new Query()
-                .addSort(Article.ARTICLE_STICK, SortDirection.DESCENDING)
-                .addSort(Keys.OBJECT_ID, SortDirection.DESCENDING)
-                .setPageSize(fetchSize).setCurrentPageNum(currentPageNum);
-        ret.setFilter(makeRecentArticleShowingFilter());
-        ret.addProjection(Keys.OBJECT_ID, String.class).
-                addProjection(Article.ARTICLE_STICK, Long.class).
-                addProjection(Article.ARTICLE_CREATE_TIME, Long.class).
-                addProjection(Article.ARTICLE_UPDATE_TIME, Long.class).
-                addProjection(Article.ARTICLE_LATEST_CMT_TIME, Long.class).
-                addProjection(Article.ARTICLE_AUTHOR_ID, String.class).
-                addProjection(Article.ARTICLE_TITLE, String.class).
-                addProjection(Article.ARTICLE_STATUS, Integer.class).
-                addProjection(Article.ARTICLE_VIEW_CNT, Integer.class).
-                addProjection(Article.ARTICLE_TYPE, Integer.class).
-                addProjection(Article.ARTICLE_PERMALINK, String.class).
-                addProjection(Article.ARTICLE_TAGS, String.class).
-                addProjection(Article.ARTICLE_LATEST_CMTER_NAME, String.class).
-                addProjection(Article.ARTICLE_SYNC_TO_CLIENT, Boolean.class).
-                addProjection(Article.ARTICLE_COMMENT_CNT, Integer.class).
-                addProjection(Article.ARTICLE_ANONYMOUS, Integer.class).
-                addProjection(Article.ARTICLE_PERFECT, Integer.class).
-                addProjection(Article.ARTICLE_BAD_CNT, Integer.class).
-                addProjection(Article.ARTICLE_GOOD_CNT, Integer.class).
-                addProjection(Article.ARTICLE_COLLECT_CNT, Integer.class).
-                addProjection(Article.ARTICLE_WATCH_CNT, Integer.class).
-                addProjection(Article.ARTICLE_UA, String.class).
-                addProjection(Article.ARTICLE_CONTENT, String.class).
-                addProjection(Article.ARTICLE_QNA_OFFER_POINT, Integer.class);
-
-
-        return ret;
-    }
-
-    /**
-     * Makes the recent (sort by comment count desc) articles with the specified fetch size.
-     *
-     * @param currentPageNum the specified current page number
-     * @param fetchSize      the specified fetch size
-     * @return recent articles query
-     */
-    private Query makeRecentHotQuery(final int currentPageNum, final int fetchSize) {
-        final String id = String.valueOf(DateUtils.addMonths(new Date(), -1).getTime());
-
-        final Query ret = new Query()
-                .addSort(Article.ARTICLE_STICK, SortDirection.DESCENDING)
-                .addSort(Article.ARTICLE_COMMENT_CNT, SortDirection.DESCENDING)
-                .addSort(Keys.OBJECT_ID, SortDirection.DESCENDING)
-                .setPageSize(fetchSize).setCurrentPageNum(currentPageNum);
-
-        final CompositeFilter compositeFilter = makeRecentArticleShowingFilter();
+    private CompositeFilter makeQuestionArticleShowingFilter() {
         final List<Filter> filters = new ArrayList<>();
-        filters.add(new PropertyFilter(Keys.OBJECT_ID, FilterOperator.GREATER_THAN_OR_EQUAL, id));
-        filters.addAll(compositeFilter.getSubFilters());
+        filters.add(new PropertyFilter(Article.ARTICLE_TYPE, FilterOperator.EQUAL, Article.ARTICLE_TYPE_C_QNA));
+        filters.add(new PropertyFilter(Article.ARTICLE_STATUS, FilterOperator.NOT_EQUAL, Article.ARTICLE_STATUS_C_INVALID));
+        filters.add(new PropertyFilter(Article.ARTICLE_TAGS, FilterOperator.NOT_EQUAL, Tag.TAG_TITLE_C_SANDBOX));
 
-        ret.setFilter(new CompositeFilter(CompositeFilterOperator.AND, filters));
-        ret.addProjection(Keys.OBJECT_ID, String.class).
-                addProjection(Article.ARTICLE_STICK, Long.class).
-                addProjection(Article.ARTICLE_CREATE_TIME, Long.class).
-                addProjection(Article.ARTICLE_UPDATE_TIME, Long.class).
-                addProjection(Article.ARTICLE_LATEST_CMT_TIME, Long.class).
-                addProjection(Article.ARTICLE_AUTHOR_ID, String.class).
-                addProjection(Article.ARTICLE_TITLE, String.class).
-                addProjection(Article.ARTICLE_STATUS, Integer.class).
-                addProjection(Article.ARTICLE_VIEW_CNT, Integer.class).
-                addProjection(Article.ARTICLE_TYPE, Integer.class).
-                addProjection(Article.ARTICLE_PERMALINK, String.class).
-                addProjection(Article.ARTICLE_TAGS, String.class).
-                addProjection(Article.ARTICLE_LATEST_CMTER_NAME, String.class).
-                addProjection(Article.ARTICLE_SYNC_TO_CLIENT, Boolean.class).
-                addProjection(Article.ARTICLE_COMMENT_CNT, Integer.class).
-                addProjection(Article.ARTICLE_ANONYMOUS, Integer.class).
-                addProjection(Article.ARTICLE_PERFECT, Integer.class).
-                addProjection(Article.ARTICLE_BAD_CNT, Integer.class).
-                addProjection(Article.ARTICLE_GOOD_CNT, Integer.class).
-                addProjection(Article.ARTICLE_COLLECT_CNT, Integer.class).
-                addProjection(Article.ARTICLE_WATCH_CNT, Integer.class).
-                addProjection(Article.ARTICLE_UA, String.class).
-                addProjection(Article.ARTICLE_CONTENT, String.class).
-                addProjection(Article.ARTICLE_QNA_OFFER_POINT, Integer.class);
-
-        return ret;
-    }
-
-    /**
-     * Makes the recent (sort by score desc) articles with the specified fetch size.
-     *
-     * @param currentPageNum the specified current page number
-     * @param fetchSize      the specified fetch size
-     * @return recent articles query
-     */
-    private Query makeRecentGoodQuery(final int currentPageNum, final int fetchSize) {
-        final Query ret = new Query()
-                .addSort(Article.ARTICLE_STICK, SortDirection.DESCENDING)
-                .addSort(Article.REDDIT_SCORE, SortDirection.DESCENDING)
-                .addSort(Keys.OBJECT_ID, SortDirection.DESCENDING)
-                .setPageSize(fetchSize).setCurrentPageNum(currentPageNum);
-        ret.setFilter(makeRecentArticleShowingFilter());
-        ret.addProjection(Keys.OBJECT_ID, String.class).
-                addProjection(Article.ARTICLE_STICK, Long.class).
-                addProjection(Article.ARTICLE_CREATE_TIME, Long.class).
-                addProjection(Article.ARTICLE_UPDATE_TIME, Long.class).
-                addProjection(Article.ARTICLE_LATEST_CMT_TIME, Long.class).
-                addProjection(Article.ARTICLE_AUTHOR_ID, String.class).
-                addProjection(Article.ARTICLE_TITLE, String.class).
-                addProjection(Article.ARTICLE_STATUS, Integer.class).
-                addProjection(Article.ARTICLE_VIEW_CNT, Integer.class).
-                addProjection(Article.ARTICLE_TYPE, Integer.class).
-                addProjection(Article.ARTICLE_PERMALINK, String.class).
-                addProjection(Article.ARTICLE_TAGS, String.class).
-                addProjection(Article.ARTICLE_LATEST_CMTER_NAME, String.class).
-                addProjection(Article.ARTICLE_SYNC_TO_CLIENT, Boolean.class).
-                addProjection(Article.ARTICLE_COMMENT_CNT, Integer.class).
-                addProjection(Article.ARTICLE_ANONYMOUS, Integer.class).
-                addProjection(Article.ARTICLE_PERFECT, Integer.class).
-                addProjection(Article.ARTICLE_BAD_CNT, Integer.class).
-                addProjection(Article.ARTICLE_GOOD_CNT, Integer.class).
-                addProjection(Article.ARTICLE_COLLECT_CNT, Integer.class).
-                addProjection(Article.ARTICLE_WATCH_CNT, Integer.class).
-                addProjection(Article.ARTICLE_UA, String.class).
-                addProjection(Article.ARTICLE_CONTENT, String.class).
-                addProjection(Article.ARTICLE_QNA_OFFER_POINT, Integer.class);
-
-        return ret;
-    }
-
-    /**
-     * Makes the recent (sort by latest comment time desc) articles with the specified fetch size.
-     *
-     * @param currentPageNum the specified current page number
-     * @param fetchSize      the specified fetch size
-     * @return recent articles query
-     */
-    private Query makeRecentReplyQuery(final int currentPageNum, final int fetchSize) {
-        final Query ret = new Query()
-                .addSort(Article.ARTICLE_STICK, SortDirection.DESCENDING)
-                .addSort(Article.ARTICLE_LATEST_CMT_TIME, SortDirection.DESCENDING)
-                .addSort(Keys.OBJECT_ID, SortDirection.DESCENDING)
-                .setPageSize(fetchSize).setCurrentPageNum(currentPageNum);
-        ret.setFilter(makeRecentArticleShowingFilter());
-        ret.addProjection(Keys.OBJECT_ID, String.class).
-                addProjection(Article.ARTICLE_STICK, Long.class).
-                addProjection(Article.ARTICLE_CREATE_TIME, Long.class).
-                addProjection(Article.ARTICLE_UPDATE_TIME, Long.class).
-                addProjection(Article.ARTICLE_LATEST_CMT_TIME, Long.class).
-                addProjection(Article.ARTICLE_AUTHOR_ID, String.class).
-                addProjection(Article.ARTICLE_TITLE, String.class).
-                addProjection(Article.ARTICLE_STATUS, Integer.class).
-                addProjection(Article.ARTICLE_VIEW_CNT, Integer.class).
-                addProjection(Article.ARTICLE_TYPE, Integer.class).
-                addProjection(Article.ARTICLE_PERMALINK, String.class).
-                addProjection(Article.ARTICLE_TAGS, String.class).
-                addProjection(Article.ARTICLE_LATEST_CMTER_NAME, String.class).
-                addProjection(Article.ARTICLE_SYNC_TO_CLIENT, Boolean.class).
-                addProjection(Article.ARTICLE_COMMENT_CNT, Integer.class).
-                addProjection(Article.ARTICLE_ANONYMOUS, Integer.class).
-                addProjection(Article.ARTICLE_PERFECT, Integer.class).
-                addProjection(Article.ARTICLE_BAD_CNT, Integer.class).
-                addProjection(Article.ARTICLE_GOOD_CNT, Integer.class).
-                addProjection(Article.ARTICLE_COLLECT_CNT, Integer.class).
-                addProjection(Article.ARTICLE_WATCH_CNT, Integer.class).
-                addProjection(Article.ARTICLE_UA, String.class).
-                addProjection(Article.ARTICLE_CONTENT, String.class).
-                addProjection(Article.ARTICLE_QNA_OFFER_POINT, Integer.class);
-
-        return ret;
+        return new CompositeFilter(CompositeFilterOperator.AND, filters);
     }
 
     /**
@@ -1468,7 +1341,7 @@ public class ArticleQueryService {
     }
 
     /**
-     * Gets the recent (sort by create time) articles with the specified fetch size.
+     * Gets the recent articles with the specified fetch size.
      *
      * @param avatarViewMode the specified avatar view mode
      * @param sortMode       the specified sort mode, 0: default, 1: hot, 2: score, 3: reply
@@ -1498,28 +1371,54 @@ public class ArticleQueryService {
         Query query;
         switch (sortMode) {
             case 0:
-                query = makeRecentDefaultQuery(currentPageNum, fetchSize);
+                query = new Query().
+                        addSort(Article.ARTICLE_STICK, SortDirection.DESCENDING).
+                        addSort(Keys.OBJECT_ID, SortDirection.DESCENDING).
+                        setPageSize(fetchSize).setCurrentPageNum(currentPageNum).
+                        setFilter(makeRecentArticleShowingFilter());
 
                 break;
             case 1:
-                query = makeRecentHotQuery(currentPageNum, fetchSize);
+                final String id = String.valueOf(DateUtils.addMonths(new Date(), -1).getTime());
+                query = new Query().
+                        addSort(Article.ARTICLE_STICK, SortDirection.DESCENDING).
+                        addSort(Article.ARTICLE_COMMENT_CNT, SortDirection.DESCENDING).
+                        addSort(Keys.OBJECT_ID, SortDirection.DESCENDING).
+                        setPageSize(fetchSize).setCurrentPageNum(currentPageNum);
+                final CompositeFilter compositeFilter = makeRecentArticleShowingFilter();
+                final List<Filter> filters = new ArrayList<>();
+                filters.add(new PropertyFilter(Keys.OBJECT_ID, FilterOperator.GREATER_THAN_OR_EQUAL, id));
+                filters.addAll(compositeFilter.getSubFilters());
+                query.setFilter(new CompositeFilter(CompositeFilterOperator.AND, filters));
 
                 break;
             case 2:
-                query = makeRecentGoodQuery(currentPageNum, fetchSize);
+                query = new Query().
+                        addSort(Article.ARTICLE_STICK, SortDirection.DESCENDING).
+                        addSort(Article.REDDIT_SCORE, SortDirection.DESCENDING).
+                        addSort(Keys.OBJECT_ID, SortDirection.DESCENDING).
+                        setPageSize(fetchSize).setCurrentPageNum(currentPageNum).
+                        setFilter(makeRecentArticleShowingFilter());
 
                 break;
             case 3:
-                query = makeRecentReplyQuery(currentPageNum, fetchSize);
+                query = new Query().
+                        addSort(Article.ARTICLE_STICK, SortDirection.DESCENDING).
+                        addSort(Article.ARTICLE_LATEST_CMT_TIME, SortDirection.DESCENDING).
+                        addSort(Keys.OBJECT_ID, SortDirection.DESCENDING).
+                        setPageSize(fetchSize).setCurrentPageNum(currentPageNum).
+                        setFilter(makeRecentArticleShowingFilter());
 
                 break;
             default:
-                LOGGER.warn("Unknown sort mode [" + sortMode + "]");
-                query = makeRecentDefaultQuery(currentPageNum, fetchSize);
+                query = new Query().
+                        addSort(Article.ARTICLE_STICK, SortDirection.DESCENDING).
+                        addSort(Keys.OBJECT_ID, SortDirection.DESCENDING).
+                        setPageSize(fetchSize).setCurrentPageNum(currentPageNum).
+                        setFilter(makeRecentArticleShowingFilter());
         }
 
-        JSONObject result = null;
-
+        JSONObject result;
         try {
             Stopwatchs.start("Query recent articles");
 
@@ -1587,7 +1486,6 @@ public class ArticleQueryService {
                         + "	articlePermalink,\n"
                         + "	articleTags,\n"
                         + "	articleLatestCmterName,\n"
-                        + "	syncWithSymphonyClient,\n"
                         + "	articleCommentCount,\n"
                         + "	articleAnonymous,\n"
                         + "	articlePerfect,\n"
@@ -1699,8 +1597,7 @@ public class ArticleQueryService {
 
         final JSONObject ret = new JSONObject();
 
-        JSONObject result = null;
-
+        JSONObject result;
         try {
             Stopwatchs.start("Query recent articles");
 
@@ -1743,184 +1640,12 @@ public class ArticleQueryService {
     }
 
     /**
-     * Gets the index hot articles with the specified fetch size.
-     *
-     * @param avatarViewMode the specified avatar view mode
-     * @return hot articles, returns an empty list if not found
-     * @throws ServiceException service exception
-     */
-    public List<JSONObject> getIndexHotArticles(final int avatarViewMode) throws ServiceException {
-        final Query query = new Query()
-                .addSort(Article.REDDIT_SCORE, SortDirection.DESCENDING)
-                .addSort(Article.ARTICLE_LATEST_CMT_TIME, SortDirection.DESCENDING)
-                .setPageCount(1).setPageSize(Symphonys.getInt("indexListCnt")).setCurrentPageNum(1);
-        query.setFilter(makeArticleShowingFilter());
-        query.addProjection(Keys.OBJECT_ID, String.class).
-                addProjection(Article.ARTICLE_STICK, Long.class).
-                addProjection(Article.ARTICLE_CREATE_TIME, Long.class).
-                addProjection(Article.ARTICLE_UPDATE_TIME, Long.class).
-                addProjection(Article.ARTICLE_LATEST_CMT_TIME, Long.class).
-                addProjection(Article.ARTICLE_AUTHOR_ID, String.class).
-                addProjection(Article.ARTICLE_TITLE, String.class).
-                addProjection(Article.ARTICLE_STATUS, Integer.class).
-                addProjection(Article.ARTICLE_VIEW_CNT, Integer.class).
-                addProjection(Article.ARTICLE_TYPE, Integer.class).
-                addProjection(Article.ARTICLE_PERMALINK, String.class).
-                addProjection(Article.ARTICLE_TAGS, String.class).
-                addProjection(Article.ARTICLE_LATEST_CMTER_NAME, String.class).
-                addProjection(Article.ARTICLE_SYNC_TO_CLIENT, Boolean.class).
-                addProjection(Article.ARTICLE_COMMENT_CNT, Integer.class).
-                addProjection(Article.ARTICLE_ANONYMOUS, Integer.class).
-                addProjection(Article.ARTICLE_PERFECT, Integer.class);
-
-        try {
-            List<JSONObject> ret;
-            Stopwatchs.start("Query index hot articles");
-            try {
-                final JSONObject result = articleRepository.get(query);
-                ret = CollectionUtils.jsonArrayToList(result.optJSONArray(Keys.RESULTS));
-            } finally {
-                Stopwatchs.end();
-            }
-
-            organizeArticles(avatarViewMode, ret);
-
-            return ret;
-        } catch (final RepositoryException e) {
-            LOGGER.log(Level.ERROR, "Gets index hot articles failed", e);
-            throw new ServiceException(e);
-        }
-    }
-
-    /**
      * Gets the index perfect articles.
      *
      * @return hot articles, returns an empty list if not found
      */
     public List<JSONObject> getIndexPerfectArticles() {
         return articleCache.getPerfectArticles();
-    }
-
-    /**
-     * Gets the recent articles with the specified fetch size.
-     *
-     * @param avatarViewMode the specified avatar view mode
-     * @param currentPageNum the specified current page number
-     * @param fetchSize      the specified fetch size
-     * @return recent articles, returns an empty list if not found
-     * @throws ServiceException service exception
-     */
-    public List<JSONObject> getRecentArticlesWithComments(final int avatarViewMode,
-                                                          final int currentPageNum, final int fetchSize) throws ServiceException {
-        return getArticles(avatarViewMode, makeRecentDefaultQuery(currentPageNum, fetchSize));
-    }
-
-    /**
-     * Gets the index articles with the specified fetch size.
-     *
-     * @param avatarViewMode the specified avatar view mode
-     * @param currentPageNum the specified current page number
-     * @param fetchSize      the specified fetch size
-     * @return recent articles, returns an empty list if not found
-     * @throws ServiceException service exception
-     */
-    public List<JSONObject> getTopArticlesWithComments(final int avatarViewMode,
-                                                       final int currentPageNum, final int fetchSize) throws ServiceException {
-        return getArticles(avatarViewMode, makeTopQuery(currentPageNum, fetchSize));
-    }
-
-    /**
-     * The specific articles.
-     *
-     * @param avatarViewMode the specified avatar view mode
-     * @param query          conditions
-     * @return articles
-     * @throws ServiceException service exception
-     */
-    private List<JSONObject> getArticles(final int avatarViewMode, final Query query) throws ServiceException {
-        try {
-            final JSONObject result = articleRepository.get(query);
-            final List<JSONObject> ret = CollectionUtils.jsonArrayToList(result.optJSONArray(Keys.RESULTS));
-            organizeArticles(avatarViewMode, ret);
-            final List<JSONObject> stories = new ArrayList<>();
-
-            for (final JSONObject article : ret) {
-                final JSONObject story = new JSONObject();
-                final String authorId = article.optString(Article.ARTICLE_AUTHOR_ID);
-                final JSONObject author = userRepository.get(authorId);
-                if (UserExt.USER_STATUS_C_INVALID == author.optInt(UserExt.USER_STATUS)) {
-                    story.put("title", langPropsService.get("articleTitleBlockLabel"));
-                } else {
-                    story.put("title", article.optString(Article.ARTICLE_TITLE));
-                }
-                story.put("id", article.optLong("oId"));
-                story.put("url", Latkes.getServePath() + article.optString(Article.ARTICLE_PERMALINK));
-                story.put("user_display_name", article.optString(Article.ARTICLE_T_AUTHOR_NAME));
-                story.put("user_job", author.optString(UserExt.USER_INTRO));
-                story.put("comment_html", article.optString(Article.ARTICLE_CONTENT));
-                story.put("comment_count", article.optInt(Article.ARTICLE_COMMENT_CNT));
-                story.put("vote_count", article.optInt(Article.ARTICLE_GOOD_CNT));
-                story.put("created_at", formatDate(article.get(Article.ARTICLE_CREATE_TIME)));
-                story.put("user_portrait_url", article.optString(Article.ARTICLE_T_AUTHOR_THUMBNAIL_URL));
-                story.put("comments", getAllComments(avatarViewMode, article.optString("oId")));
-                final String tagsString = article.optString(Article.ARTICLE_TAGS);
-                String[] tags = null;
-                if (!Strings.isEmptyOrNull(tagsString)) {
-                    tags = tagsString.split(",");
-                }
-                story.put("badge", tags == null ? "" : tags[0]);
-                stories.add(story);
-            }
-            final Integer participantsCnt = Symphonys.getInt("indexArticleParticipantsCnt");
-            genParticipants(avatarViewMode, stories, participantsCnt);
-            return stories;
-        } catch (final RepositoryException | JSONException e) {
-            LOGGER.log(Level.ERROR, "Gets index articles failed", e);
-
-            throw new ServiceException(e);
-        }
-    }
-
-    /**
-     * Gets the article comments with the specified article id.
-     *
-     * @param avatarViewMode the specified avatar view mode
-     * @param articleId      the specified article id
-     * @return comments, return an empty list if not found
-     * @throws ServiceException    service exception
-     * @throws JSONException       json exception
-     * @throws RepositoryException repository exception
-     */
-    private List<JSONObject> getAllComments(final int avatarViewMode, final String articleId)
-            throws ServiceException, JSONException, RepositoryException {
-        final List<JSONObject> commments = new ArrayList<>();
-        final List<JSONObject> articleComments = commentQueryService.getArticleComments(
-                avatarViewMode, articleId, 1, Integer.MAX_VALUE, UserExt.USER_COMMENT_VIEW_MODE_C_TRADITIONAL);
-        for (final JSONObject ac : articleComments) {
-            final JSONObject comment = new JSONObject();
-            final JSONObject author = userRepository.get(ac.optString(Comment.COMMENT_AUTHOR_ID));
-            comment.put("id", ac.optLong("oId"));
-            comment.put("body_html", ac.optString(Comment.COMMENT_CONTENT));
-            comment.put("depth", 0);
-            comment.put("user_display_name", ac.optString(Comment.COMMENT_T_AUTHOR_NAME));
-            comment.put("user_job", author.optString(UserExt.USER_INTRO));
-            comment.put("vote_count", 0);
-            comment.put("created_at", formatDate(ac.get(Comment.COMMENT_CREATE_TIME)));
-            comment.put("user_portrait_url", ac.optString(Comment.COMMENT_T_ARTICLE_AUTHOR_THUMBNAIL_URL));
-            commments.add(comment);
-        }
-        return commments;
-    }
-
-    /**
-     * The demand format date.
-     *
-     * @param date the original date
-     * @return the format date like "2015-08-03T07:26:57Z"
-     */
-    private String formatDate(final Object date) {
-        return DateFormatUtils.format(((Date) date).getTime(), "yyyy-MM-dd")
-                + "T" + DateFormatUtils.format(((Date) date).getTime(), "HH:mm:ss") + "Z";
     }
 
     /**
@@ -2039,7 +1764,6 @@ public class ArticleQueryService {
         final JSONArray cmts = commentRepository.get(query).optJSONArray(Keys.RESULTS);
         if (cmts.length() > 0) {
             final JSONObject latestCmt = cmts.optJSONObject(0);
-            latestCmt.put(Comment.COMMENT_CLIENT_COMMENT_ID, latestCmt.optString(Comment.COMMENT_CLIENT_COMMENT_ID));
             article.put(Article.ARTICLE_T_LATEST_CMT, latestCmt);
         }
 
@@ -2419,8 +2143,7 @@ public class ArticleQueryService {
             query.setFilter(new PropertyFilter(Keys.OBJECT_ID, FilterOperator.EQUAL, requestJSONObject.optString(Keys.OBJECT_ID)));
         }
 
-        JSONObject result = null;
-
+        JSONObject result;
         try {
             result = articleRepository.get(query);
         } catch (final RepositoryException e) {
@@ -2499,7 +2222,7 @@ public class ArticleQueryService {
      * @param article the specified article
      * @return meta description
      */
-    public String getArticleMetaDesc(final JSONObject article) {
+    String getArticleMetaDesc(final JSONObject article) {
         final String articleId = article.optString(Keys.OBJECT_ID);
         String articleAbstract = articleCache.getArticleAbstract(articleId);
         if (StringUtils.isNotBlank(articleAbstract)) {
@@ -2671,5 +2394,31 @@ public class ArticleQueryService {
         } finally {
             Stopwatchs.end();
         }
+    }
+
+    private void addListProjections(final Query query) {
+        query.addProjection(Keys.OBJECT_ID, String.class).
+                addProjection(Article.ARTICLE_STICK, Long.class).
+                addProjection(Article.ARTICLE_CREATE_TIME, Long.class).
+                addProjection(Article.ARTICLE_UPDATE_TIME, Long.class).
+                addProjection(Article.ARTICLE_LATEST_CMT_TIME, Long.class).
+                addProjection(Article.ARTICLE_AUTHOR_ID, String.class).
+                addProjection(Article.ARTICLE_TITLE, String.class).
+                addProjection(Article.ARTICLE_STATUS, Integer.class).
+                addProjection(Article.ARTICLE_VIEW_CNT, Integer.class).
+                addProjection(Article.ARTICLE_TYPE, Integer.class).
+                addProjection(Article.ARTICLE_PERMALINK, String.class).
+                addProjection(Article.ARTICLE_TAGS, String.class).
+                addProjection(Article.ARTICLE_LATEST_CMTER_NAME, String.class).
+                addProjection(Article.ARTICLE_COMMENT_CNT, Integer.class).
+                addProjection(Article.ARTICLE_ANONYMOUS, Integer.class).
+                addProjection(Article.ARTICLE_PERFECT, Integer.class).
+                addProjection(Article.ARTICLE_BAD_CNT, Integer.class).
+                addProjection(Article.ARTICLE_GOOD_CNT, Integer.class).
+                addProjection(Article.ARTICLE_COLLECT_CNT, Integer.class).
+                addProjection(Article.ARTICLE_WATCH_CNT, Integer.class).
+                addProjection(Article.ARTICLE_UA, String.class).
+                addProjection(Article.ARTICLE_CONTENT, String.class).
+                addProjection(Article.ARTICLE_QNA_OFFER_POINT, Integer.class);
     }
 }
