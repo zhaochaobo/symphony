@@ -62,7 +62,7 @@ import java.util.*;
  *
  * @author <a href="http://88250.b3log.org">Liang Ding</a>
  * @author <a href="http://vanessa.b3log.org">Liyuan Li</a>
- * @version 2.28.0.0, Jul 31, 2018
+ * @version 2.28.0.1, Aug 1, 2018
  * @since 0.2.0
  */
 @Service
@@ -157,6 +157,12 @@ public class ArticleQueryService {
     private ArticleCache articleCache;
 
     /**
+     * Reward query service.
+     */
+    @Inject
+    private RewardQueryService rewardQueryService;
+
+    /**
      * Gets the question articles with the specified fetch size.
      *
      * @param avatarViewMode the specified avatar view mode
@@ -206,8 +212,8 @@ public class ArticleQueryService {
             case 2:
                 final String id = String.valueOf(DateUtils.addMonths(new Date(), -1).getTime());
                 query = new Query().
-                        addSort(Keys.OBJECT_ID, SortDirection.DESCENDING).
                         addSort(Article.ARTICLE_QNA_OFFER_POINT, SortDirection.DESCENDING).
+                        addSort(Keys.OBJECT_ID, SortDirection.DESCENDING).
                         setPageSize(fetchSize).setCurrentPageNum(currentPageNum);
                 final CompositeFilter compositeFilter2 = makeQuestionArticleShowingFilter();
                 final List<Filter> filters2 = new ArrayList<>();
@@ -260,6 +266,12 @@ public class ArticleQueryService {
 
         try {
             organizeArticles(avatarViewMode, articles);
+
+            for (final JSONObject article : articles) {
+                final String articleAuthorId = article.optString(Article.ARTICLE_AUTHOR_ID);
+                final String articleId = article.optString(Keys.OBJECT_ID);
+                article.put(Common.OFFERED, rewardQueryService.isRewarded(articleAuthorId, articleId, Reward.TYPE_C_ACCEPT_COMMENT));
+            }
         } catch (final RepositoryException e) {
             LOGGER.log(Level.ERROR, "Organizes articles failed", e);
 
@@ -1692,6 +1704,7 @@ public class ArticleQueryService {
      */
     public void organizeArticle(final int avatarViewMode, final JSONObject article) throws RepositoryException {
         article.put(Article.ARTICLE_T_ORIGINAL_CONTENT, article.optString(Article.ARTICLE_CONTENT));
+        article.put(Common.OFFERED, false);
         toArticleDate(article);
         genArticleAuthor(avatarViewMode, article);
 
