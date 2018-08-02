@@ -646,6 +646,7 @@ public class InitMgmtService {
             String tagId = tagMgmtService.addTag(adminId, tagTitle);
             JSONObject tag = tagRepository.get(tagId);
             tag.put(Tag.TAG_URI, "announcement");
+            tag.put(Tag.TAG_ICON_PATH, "announcement.png");
             tagMgmtService.updateTag(tagId, tag);
 
             tagTitle = "B3log";
@@ -696,7 +697,7 @@ public class InitMgmtService {
             // Hello World!
             final JSONObject article = new JSONObject();
             article.put(Article.ARTICLE_TITLE, "Welcome to Sym community :gift_heart:");
-            article.put(Article.ARTICLE_TAGS, "Sym,Announcement");
+            article.put(Article.ARTICLE_TAGS, "Sym,云谷发布");
             article.put(Article.ARTICLE_CONTENT, "Hello, everyone!");
             article.put(Article.ARTICLE_EDITOR_TYPE, 0);
             article.put(Article.ARTICLE_AUTHOR_ID, admin.optString(Keys.OBJECT_ID));
