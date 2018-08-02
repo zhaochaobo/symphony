@@ -39,7 +39,7 @@
                 <a href="${servePath}/statistic">${dataStatLabel}</a>
 
                 <div class="fn-right">&COPY; ${year}
-                    <a rel="copyright" href="https://hacpai.com" target="_blank">hacpai.com</a>
+                    <a rel="copyright" href="http://yungu.io" target="_blank">yungu.io</a>
                     ${visionLabel}</div>
             </div>
             <div class="fn-clear ft-smaller">
