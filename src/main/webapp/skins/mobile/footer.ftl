@@ -21,7 +21,7 @@
     <div class="wrapper ft-smaller">
         <div class="footer-nav">
             <span>&COPY; ${year}</span>
-            <a rel="copyright" href="https://hacpai.com" target="_blank">hacpai.com</a>
+            <a rel="copyright" href="https://yungu.io" target="_blank">yungu.io</a>
             ${visionLabel}
         </div>
         <div class="fn-hr5"></div>
