@@ -21,7 +21,7 @@
                                                         </tbody>
                                                     </table>
                                                     <div style="font-size:12px;color:#33ae81">
-                                                        <a href="${servePath}" style="font-weight:bold;color:#333;text-decoration:none" target="_blank">黑客与画家 • 账号</a>
+                                                        <a href="${servePath}" style="font-weight:bold;color:#333;text-decoration:none" target="_blank">云谷 • 账号</a>
                                                     </div>
                                                     <table width="350" cellpadding="0" cellspacing="0" border="0">
                                                         <tbody>

@@ -19,7 +19,7 @@
 -->
 <div class="nav">
     <h1 aria-label="${symphonyLabel}" class="tooltipped tooltipped-s">
-        <a href="${servePath}">
+        <a class="logo" href="${servePath}">
             <svg>
                 <use xlink:href="#logo"></use>
             </svg>

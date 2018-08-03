@@ -1876,7 +1876,11 @@ public class ArticleQueryService {
             article.put(Article.ARTICLE_T_AUTHOR_THUMBNAIL_URL + "48", avatarQueryService.getDefaultAvatarURL("48"));
             article.put(Article.ARTICLE_T_AUTHOR_THUMBNAIL_URL + "20", avatarQueryService.getDefaultAvatarURL("20"));
         } else {
-            article.put(Article.ARTICLE_T_AUTHOR_NAME, author.optString(User.USER_NAME));
+            String authorName = author.optString(UserExt.USER_NICKNAME);
+            if (Strings.isEmptyOrNull(authorName)) {
+                authorName = author.optString(User.USER_NAME);
+            }
+            article.put(Article.ARTICLE_T_AUTHOR_NAME, authorName);
             article.put(Article.ARTICLE_T_AUTHOR_THUMBNAIL_URL + "210",
                     avatarQueryService.getAvatarURLByUser(avatarViewMode, author, "210"));
             article.put(Article.ARTICLE_T_AUTHOR_THUMBNAIL_URL + "48",

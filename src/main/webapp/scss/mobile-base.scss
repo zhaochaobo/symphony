@@ -589,7 +589,8 @@ a[class*=" icon-"]:hover {
 }
 .logo {
   display: inline-block;
-  background: url("../images/logo2.png") -15px -8px 30px;
+  background: url(../images/logo2.png) no-repeat -8px;
+  background-size: auto 30px;
   width: 100px;
   height: 30px;
 }
