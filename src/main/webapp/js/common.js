@@ -1184,8 +1184,11 @@ var Util = {
     }
 
     this._initCommonHotKey();
+    if (!Label.year) {
+      Label.year = new Date().getFullYear()
+    }
     console.log(
-      '%cHacPai%c\n  平等、自由、奔放\n  Feel easy about trust.\n\n  b3log.org & hacpai.com\n  Copyright © 2012-' +
+      '%c云谷%c\n  平等、自由、奔放\n  Feel easy about trust.\n\n  yungu.io & 云谷\n  Copyright © 2018-' +
       Label.year,
       'font-size:96px;color:#3b3e43', 'font-size:12px;color:rgba(0,0,0,0.38);');
     if (isLoggedIn) {

@@ -400,7 +400,7 @@
         </div>
         <div class="article-header">
             <h1 aria-label="${symphonyLabel}" class="tooltipped tooltipped-s">
-                <a href="${servePath}">
+                <a href="${servePath}" class="logo" style="color: white">
                     <svg><use xlink:href="#logo"></use></svg>
                 </a>
             </h1>
